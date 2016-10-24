@@ -50,7 +50,7 @@
     "debug": {
       "version": "2.2.0",
       "resolved": "https://registry.npmjs.org/debug/-/debug-2.2.0.tgz",
-      "from": "debug@*"
+      "from": "debug@>=2.2.0 <2.3.0"
     },
     "formidable": {
       "version": "1.0.15",

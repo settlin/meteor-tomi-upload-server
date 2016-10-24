@@ -2,14 +2,12 @@ var formidable = Npm.require('formidable');
 var http = Npm.require('http');
 var sys = Npm.require('sys');
 
-//var connect = Npm.require('connect');
 var url = Npm.require('url');
 var path = Npm.require('path');
 var fs = Npm.require('fs');
 var Fiber = Npm.require('fibers');
 var _existsSync = fs.existsSync || path.existsSync;
-var imageMagick = Npm.require('imagemagick');
-// var gm = Npm.require('gm').subClass({imageMagick: true});
+var gm = Npm.require('gm').subClass({imageMagick: true});
 
 var options = {
   /** @type String*/
@@ -83,7 +81,6 @@ UploadServer = {
     return options;
   },
   init: function (opts) {
-    console.log("init");
     if (opts.checkCreateDirectories != null) options.checkCreateDirectories = opts.checkCreateDirectories;
 
     if (opts.tmpDir == null) {
@@ -188,11 +185,6 @@ UploadServer = {
         res.write(result.error);
         res.end();
       } else {
-        //res.writeHead(200, {
-        //  'Content-Type': req.headers.accept
-        //    .indexOf('application/json') !== -1 ?
-        //    'application/json' : 'text/plain'
-        //});
         res.end(JSON.stringify(result));
       }
     },
@@ -246,7 +238,6 @@ UploadServer = {
         }
         res.writeHead(200, {'Content-Type': mimeType});
 
-        //connect.static(options.uploadDir)(req, res);
         var fileStream = fs.createReadStream(filename);
         fileStream.pipe(res);
 
@@ -264,8 +255,8 @@ UploadServer = {
       case 'POST':
       // validate post
       setNoCacheHeaders();
-      console.log(filename);
-      console.log(uri);
+			console.log(1, filename);
+      console.log(2, uri);
       handler.post();
       break;
       //case 'DELETE':
@@ -313,15 +304,6 @@ FileInfo.prototype.validate = function () {
   }
   return this.error;
 };
-
-// FileInfo.prototype.safeName = function () {
-//   // Prevent directory traversal and creating hidden system files:
-//   this.name = path.basename(this.name).replace(/^\.+/, '');
-//   // Prevent overwriting existing files:
-//   while (_existsSync(options.uploadDir + '/' + this.name)) {
-//     this.name = this.name.replace(nameCountRegexp, nameCountFunc);
-//   }
-// };
 
 FileInfo.prototype.initUrls = function (req, form) {
   if (!this.error) {
@@ -378,7 +360,6 @@ UploadHandler.prototype.post = function () {
     if (this.formFields == null) {
       this.formFields = {};
     }
-    //  console.log('Form field: ' + name + "-" + value);
     this.formFields[name] = value;
   }).on('file', function (name, file) {
     var fileInfo = map[path.basename(file.path)];
@@ -478,9 +459,9 @@ UploadHandler.prototype.post = function () {
           if (options.crop) {
             ioptions.quality = 1;
             ioptions.gravity = 'Center';
-            imageMagick.crop(ioptions, watermark);
+            gm.crop(ioptions, watermark);
           } else {
-            imageMagick.resize(ioptions, watermark);
+            gm.resize(ioptions, watermark);
           }
         });
       }
