@@ -9,7 +9,7 @@ var fs = Npm.require('fs');
 var Fiber = Npm.require('fibers');
 var _existsSync = fs.existsSync || path.existsSync;
 var imageMagick = Npm.require('imagemagick');
-var gm = Npm.require('gm').subClass({imageMagick: true});
+// var gm = Npm.require('gm').subClass({imageMagick: true});
 
 var options = {
   /** @type String*/
