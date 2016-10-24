@@ -7,9 +7,9 @@ var url = Npm.require('url');
 var path = Npm.require('path');
 var fs = Npm.require('fs');
 var Fiber = Npm.require('fibers');
-
 var _existsSync = fs.existsSync || path.existsSync;
 var imageMagick = Npm.require('imagemagick');
+var gm = Npm.require('gm').subClass({imageMagick: true});
 
 var options = {
   /** @type String*/
@@ -69,11 +69,11 @@ var options = {
     "txt": "text/plain"
   }
   /* Uncomment and edit this section to provide the service via HTTPS:
-   ssl: {
-   key: fs.readFileSync('/Applications/XAMPP/etc/ssl.key/server.key'),
-   cert: fs.readFileSync('/Applications/XAMPP/etc/ssl.crt/server.crt')
-   },
-   */
+  ssl: {
+  key: fs.readFileSync('/Applications/XAMPP/etc/ssl.key/server.key'),
+  cert: fs.readFileSync('/Applications/XAMPP/etc/ssl.crt/server.crt')
+},
+*/
 };
 
 
@@ -83,6 +83,7 @@ UploadServer = {
     return options;
   },
   init: function (opts) {
+    console.log("init");
     if (opts.checkCreateDirectories != null) options.checkCreateDirectories = opts.checkCreateDirectories;
 
     if (opts.tmpDir == null) {
@@ -145,16 +146,15 @@ UploadServer = {
     WebApp.connectHandlers.use(options.uploadUrl, UploadServer.serve);
   },
   delete: function (filePath) {
-
     // make sure paths are correct
     fs.unlinkSync(path.join(options.uploadDir, filePath));
 
     // unlink all imageVersions also
     if (options.imageVersions) {
-    	var subFolders = Object.keys(options.imageVersions);
- 	for(var i=0; i<subFolders.length; i++) {
-	    fs.unlinkSync(path.join(options.uploadDir, subFolders[i], filePath));
- 	}
+      var subFolders = Object.keys(options.imageVersions);
+      for(var i=0; i<subFolders.length; i++) {
+        fs.unlinkSync(path.join(options.uploadDir, subFolders[i], filePath));
+      }
     }
   },
   serve: function (req, res) {
@@ -175,37 +175,37 @@ UploadServer = {
       options.accessControl.allowHeaders
     );
     var handleResult = function (result, redirect) {
-        if (redirect) {
-          res.writeHead(302, {
-            'Location': redirect.replace(
-              /%s/,
-              encodeURIComponent(JSON.stringify(result))
-            )
-          });
-          res.end();
-        } else if (result.error) {
-          res.writeHead(403, {'Content-Type': 'text/plain'});
-          res.write(result.error);
-          res.end();
-        } else {
-          //res.writeHead(200, {
-          //  'Content-Type': req.headers.accept
-          //    .indexOf('application/json') !== -1 ?
-          //    'application/json' : 'text/plain'
-          //});
-          res.end(JSON.stringify(result));
-        }
-      },
-      setNoCacheHeaders = function () {
-        if (options.cacheTime) {
-          res.setHeader('Cache-Control', 'public, max-age=' + options.cacheTime);
-        } else {
-          res.setHeader('Pragma', 'no-cache');
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-          // res.setHeader('Content-Disposition', 'inline; filename="files.json"');
-        }
-      },
-      handler = new UploadHandler(req, res, handleResult);
+      if (redirect) {
+        res.writeHead(302, {
+          'Location': redirect.replace(
+            /%s/,
+            encodeURIComponent(JSON.stringify(result))
+          )
+        });
+        res.end();
+      } else if (result.error) {
+        res.writeHead(403, {'Content-Type': 'text/plain'});
+        res.write(result.error);
+        res.end();
+      } else {
+        //res.writeHead(200, {
+        //  'Content-Type': req.headers.accept
+        //    .indexOf('application/json') !== -1 ?
+        //    'application/json' : 'text/plain'
+        //});
+        res.end(JSON.stringify(result));
+      }
+    },
+    setNoCacheHeaders = function () {
+      if (options.cacheTime) {
+        res.setHeader('Cache-Control', 'public, max-age=' + options.cacheTime);
+      } else {
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        // res.setHeader('Content-Disposition', 'inline; filename="files.json"');
+      }
+    },
+    handler = new UploadHandler(req, res, handleResult);
 
 
     // validate the request
@@ -219,59 +219,61 @@ UploadServer = {
 
     switch (req.method) {
       case 'OPTIONS':
-        res.end();
-        break;
+      res.end();
+      break;
       case 'HEAD':
       case 'GET':
-        setNoCacheHeaders();
+      setNoCacheHeaders();
 
-        var uri = url.parse(req.url).pathname;
-        var filename = path.join(options.uploadDir, unescape(uri));
-        var stats;
+      var uri = url.parse(req.url).pathname;
+      var filename = path.join(options.uploadDir, unescape(uri));
+      var stats;
 
-        try {
-          stats = fs.lstatSync(filename); // throws if path doesn't exist
-        } catch (e) {
-          res.writeHead(404, {'Content-Type': 'text/plain'});
-          res.write('404 Not Found\n');
-          res.end();
-          return;
+      try {
+        stats = fs.lstatSync(filename); // throws if path doesn't exist
+      } catch (e) {
+        res.writeHead(404, {'Content-Type': 'text/plain'});
+        res.write('404 Not Found\n');
+        res.end();
+        return;
+      }
+
+      if (stats.isFile()) {
+        // path exists, is a file
+        var mimeType = options.mimeTypes[path.extname(filename).split(".").reverse()[0]];
+        if (!mimeType) {
+          mimeType = "application/octet-stream";
         }
+        res.writeHead(200, {'Content-Type': mimeType});
 
-        if (stats.isFile()) {
-          // path exists, is a file
-          var mimeType = options.mimeTypes[path.extname(filename).split(".").reverse()[0]];
-          if (!mimeType) {
-            mimeType = "application/octet-stream";
-          }
-          res.writeHead(200, {'Content-Type': mimeType});
+        //connect.static(options.uploadDir)(req, res);
+        var fileStream = fs.createReadStream(filename);
+        fileStream.pipe(res);
 
-          //connect.static(options.uploadDir)(req, res);
-          var fileStream = fs.createReadStream(filename);
-          fileStream.pipe(res);
-
-        } else if (stats.isDirectory()) {
-          // path exists, is a directory
-          res.writeHead(403, {'Content-Type': 'text/plain'});
-          res.write('Access denied');
-          res.end();
-        } else {
-          res.writeHead(500, {'Content-Type': 'text/plain'});
-          res.write('500 Internal server error\n');
-          res.end();
-        }
-        break;
+      } else if (stats.isDirectory()) {
+        // path exists, is a directory
+        res.writeHead(403, {'Content-Type': 'text/plain'});
+        res.write('Access denied');
+        res.end();
+      } else {
+        res.writeHead(500, {'Content-Type': 'text/plain'});
+        res.write('500 Internal server error\n');
+        res.end();
+      }
+      break;
       case 'POST':
-        // validate post
-        setNoCacheHeaders();
-        handler.post();
-        break;
+      // validate post
+      setNoCacheHeaders();
+      console.log(filename);
+      console.log(uri);
+      handler.post();
+      break;
       //case 'DELETE':
       //  handler.destroy();
       //  break;
       default:
-        res.statusCode = 405;
-        res.end();
+      res.statusCode = 405;
+      res.end();
     }
   }
 }
@@ -287,8 +289,8 @@ var nameCountFunc = function (s, index, ext) {
 };
 
 /**
- * @class FileInfo Manages paths for uploaded objects
- */
+* @class FileInfo Manages paths for uploaded objects
+*/
 var FileInfo = function (file, req, form) {
   this.name = file.name;
   this.path = file.name;
@@ -327,8 +329,8 @@ FileInfo.prototype.initUrls = function (req, form) {
     var that = this;
     Object.keys(options.imageVersions).forEach(function (version) {
       if (_existsSync(
-          options.uploadDir + '/' + version + '/' + that.name
-        )) {
+        options.uploadDir + '/' + version + '/' + that.name
+      )) {
         that[version + 'Url'] = that.baseUrl + version + '/' +
         encodeURIComponent(that.name);
       }
@@ -344,22 +346,22 @@ var UploadHandler = function (req, res, callback) {
 
 UploadHandler.prototype.post = function () {
   var handler = this,
-    form = new formidable.IncomingForm(),
-    tmpFiles = [],
-    files = [],
-    map = {},
-    counter = 1,
-    redirect,
-    finish = function (err, stdout) {
-			if (err) throw err;
-      counter -= 1;
-      if (!counter) {
-        files.forEach(function (fileInfo) {
-          fileInfo.initUrls(handler.req, form);
-        });
-        handler.callback({files: files}, redirect);
-      }
-    };
+  form = new formidable.IncomingForm(),
+  tmpFiles = [],
+  files = [],
+  map = {},
+  counter = 1,
+  redirect,
+  finish = function (err, stdout) {
+    if (err) throw err;
+    counter -= 1;
+    if (!counter) {
+      files.forEach(function (fileInfo) {
+        fileInfo.initUrls(handler.req, form);
+      });
+      handler.callback({files: files}, redirect);
+    }
+  };
   form.uploadDir = options.tmpDir;
   form.on('fileBegin', function (name, file) {
     tmpFiles.push(file.path);
@@ -429,60 +431,80 @@ UploadHandler.prototype.post = function () {
     // set the file name
     fileInfo.name = newFileName;
     fileInfo.path = path.join(folder, newFileName);
+    var imageVersionsFunc = function() {
+      if (options.imageTypes.test(fileInfo.name)) {
+        Object.keys(options.imageVersions).forEach(function (version) {
+          counter += 1;
+          var opts = options.imageVersions[version];
 
-		var imageVersionsFunc = function() {
-			if (options.imageTypes.test(fileInfo.name)) {
-	      Object.keys(options.imageVersions).forEach(function (version) {
-	        counter += 1;
-	        var opts = options.imageVersions[version];
+          // check if version directory exists
+          if (!fs.existsSync(currentFolder + version)) {
+            fs.mkdirSync(currentFolder + version);
+          }
 
-	        // check if version directory exists
-	        if (!fs.existsSync(currentFolder + version)) {
-	          fs.mkdirSync(currentFolder + version);
-	        }
+          var ioptions = {
+            srcPath: currentFolder + newFileName,
+            dstPath: currentFolder + version + '/' + newFileName
+          };
+          if (opts.width) {
+            ioptions.width = opts.width;
+          }
 
-	        var ioptions = {
-	          srcPath: currentFolder + newFileName,
-	          dstPath: currentFolder + version + '/' + newFileName
-	        };
-
-	        if (opts.width) {
-	          ioptions.width = opts.width;
-	        }
-
-	        if (opts.height) {
-	          ioptions.height = opts.height;
-	        }
-
-            if (options.crop) {
-              ioptions.quality = 1;
-              ioptions.gravity = 'Center';
-              imageMagick.crop(ioptions, finish);
-            } else {
-              imageMagick.resize(ioptions, finish);
+          if (opts.height) {
+            ioptions.height = opts.height;
+          }
+          var watermark = function(err, stdout) {
+            if (err) throw err;
+            if(version === "standard") {
+              gm(ioptions.dstPath).size(function(err, size) {
+                if(!err) {
+                  var imageTxt= "";
+                  imageTxt += "image Over ";
+                  imageTxt += size.width -300 + ", ";
+                  imageTxt += size.height -150 + " ";
+                  imageTxt += "213, 129 ";
+                  imageTxt += '"http://static.settlin.in/images/logo/pure/pure.png"';
+                  gm(ioptions.dstPath)
+                  .draw([imageTxt])
+                  .fill('rgba(0,0,0,0.2)')
+                  .fontSize(200)
+                  .gravity("Center")
+                  .draw(['rotate -45 text 0,0 "Settlin"'])
+                  .write(ioptions.dstPath, finish);
+                }
+              })
             }
-	      });
-	    }
-		};
+          }
+          if (options.crop) {
+            ioptions.quality = 1;
+            ioptions.gravity = 'Center';
+            imageMagick.crop(ioptions, watermark);
+          } else {
+            imageMagick.resize(ioptions, watermark);
+          }
+        });
+      }
+    };
+
 
     // Move the file to the final destination
     var destinationFile = currentFolder + newFileName;
     try
     {
-     	// Try moving through renameSync
-       	fs.renameSync(file.path, destinationFile);
-				imageVersionsFunc();
+      // Try moving through renameSync
+      fs.renameSync(file.path, destinationFile);
+      imageVersionsFunc();
     }
     catch(exception)
     {
-    	// if moving failed, try a copy + delete instead, this to support moving work between partitions
-    	var is = fs.createReadStream(file.path);
-		var os = fs.createWriteStream(destinationFile);
-		is.pipe(os);
-		is.on('end',function() {
-    		fs.unlinkSync(file.path);
-				imageVersionsFunc();
-		});
+      // if moving failed, try a copy + delete instead, this to support moving work between partitions
+      var is = fs.createReadStream(file.path);
+      var os = fs.createWriteStream(destinationFile);
+      is.pipe(os);
+      is.on('end',function() {
+        fs.unlinkSync(file.path);
+        imageVersionsFunc();
+      });
     }
 
     // call the feedback within its own fiber
@@ -507,7 +529,7 @@ UploadHandler.prototype.post = function () {
 
 UploadHandler.prototype.destroy = function () {
   var handler = this,
-    fileName;
+  fileName;
   if (handler.req.url.slice(0, options.uploadUrl.length) === options.uploadUrl) {
     fileName = path.basename(decodeURIComponent(handler.req.url));
     if (fileName[0] !== '.') {
@@ -532,7 +554,7 @@ var checkCreateDirectory = function (dir) {
 
   // If we're on Windows we'll remove the drive letter
   if(/^win/.test(process.platform)) {
-  	dir = dir.replace(/([A-Z]:[\\\/]).*?/gi, '')
+    dir = dir.replace(/([A-Z]:[\\\/]).*?/gi, '')
   }
 
   var dirParts = dir.split('/');
@@ -553,14 +575,14 @@ var checkCreateDirectory = function (dir) {
 }
 
 var getSafeName = function(directory, fileName) {
-	var n = fileName;
-	// Prevent directory traversal and creating hidden system files:
-	n = path.basename(n).replace(/^\.+/, '');
-	// Prevent overwriting existing files:
-	if (!options.overwrite) {
-  	while (_existsSync(directory + '/' + n)) {
-  		n = n.replace(nameCountRegexp, nameCountFunc);
-  	}
+  var n = fileName;
+  // Prevent directory traversal and creating hidden system files:
+  n = path.basename(n).replace(/^\.+/, '');
+  // Prevent overwriting existing files:
+  if (!options.overwrite) {
+    while (_existsSync(directory + '/' + n)) {
+      n = n.replace(nameCountRegexp, nameCountFunc);
+    }
   }
-	return n;
+  return n;
 }
