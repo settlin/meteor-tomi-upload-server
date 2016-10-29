@@ -2,14 +2,13 @@ var formidable = Npm.require('formidable');
 var http = Npm.require('http');
 var sys = Npm.require('sys');
 
-//var connect = Npm.require('connect');
 var url = Npm.require('url');
 var path = Npm.require('path');
 var fs = Npm.require('fs');
 var Fiber = Npm.require('fibers');
 
 var _existsSync = fs.existsSync || path.existsSync;
-var imageMagick = Npm.require('imagemagick');
+var gm = Npm.require('gm').subClass({imageMagick: true});
 
 var options = {
   /** @type String*/
@@ -312,15 +311,6 @@ FileInfo.prototype.validate = function () {
   return this.error;
 };
 
-// FileInfo.prototype.safeName = function () {
-//   // Prevent directory traversal and creating hidden system files:
-//   this.name = path.basename(this.name).replace(/^\.+/, '');
-//   // Prevent overwriting existing files:
-//   while (_existsSync(options.uploadDir + '/' + this.name)) {
-//     this.name = this.name.replace(nameCountRegexp, nameCountFunc);
-//   }
-// };
-
 FileInfo.prototype.initUrls = function (req, form) {
   if (!this.error) {
     // image
@@ -430,37 +420,72 @@ UploadHandler.prototype.post = function () {
     fileInfo.name = newFileName;
     fileInfo.path = path.join(folder, newFileName);
 
+		var watermark = function(err, stdout, verOpts) {
+			if (err) throw err;
+			if (verOpts.watermark) {
+				var wmLogo = function (cb) {
+					gm(verOpts.dstPath).size(function(err, size) {
+						if (err) throw err;
+						var imageTxt= "";
+						imageTxt += "image Over ";
+						imageTxt += size.width - verOpts.watermark.logo.width - 50 + ","
+						imageTxt += size.height - verOpts.watermark.logo.height - 50 + " ";
+						imageTxt += verOpts.watermark.logo.width + "," + verOpts.watermark.logo.height;
+						imageTxt += "'" + verOpts.watermark.logo.path + "'";
+						gm(verOpts.dstPath)
+						.draw([imageTxt]).write(verOpts.dstPath, cb);
+					});
+				}
+				var wmText = function (cb) {
+					gm(verOpts.dstPath)
+					.fill('rgba(0,0,0,0.2)')
+					.fontSize(200)
+					.gravity("Center")
+					.draw(["rotate -45 text 0,0 '" + verOpts.watermark.text + "'"])
+					.write(verOpts.dstPath, cb);
+				}
+				if (verOpts.watermark.logo) {
+					check(verOpts.watermark.logo, {path: String, width: Number, height: Number});
+					wmLogo(function(err) {
+						if (err) throw err;
+						if (verOpts.watermark.text) wmText(finish);
+					});
+				}
+				else if (verOpts.watermark.text) wmText(finish);
+				else finish(err, stdout);
+  		}
+			else finish(err, stdout);
+		};
 		var imageVersionsFunc = function() {
 			if (options.imageTypes.test(fileInfo.name)) {
 	      Object.keys(options.imageVersions).forEach(function (version) {
 	        counter += 1;
-	        var opts = options.imageVersions[version];
+	        var vOpts = JSON.parse(JSON.stringify(options.imageVersions[version]));
 
 	        // check if version directory exists
 	        if (!fs.existsSync(currentFolder + version)) {
 	          fs.mkdirSync(currentFolder + version);
 	        }
 
-	        var ioptions = {
-	          srcPath: currentFolder + newFileName,
-	          dstPath: currentFolder + version + '/' + newFileName
-	        };
+					var srcPath = currentFolder + newFileName;
+	        vOpts.dstPath = currentFolder + version + '/' + newFileName;
 
-	        if (opts.width) {
-	          ioptions.width = opts.width;
-	        }
-
-	        if (opts.height) {
-	          ioptions.height = opts.height;
-	        }
-
-            if (options.crop) {
-              ioptions.quality = 1;
-              ioptions.gravity = 'Center';
-              imageMagick.crop(ioptions, finish);
-            } else {
-              imageMagick.resize(ioptions, finish);
-            }
+          if (options.crop) {
+            gm(srcPath).gravity("Center").quality(1).crop(vOpts.width, vOpts.height).write(vOpts.dstPath, function(error, stdout) {
+							watermark(error, stdout, vOpts);
+						});
+          } else {
+						if (vOpts.width || vOpts.height) {
+							gm(srcPath).resize(vOpts.width || null, vOpts.height || null).write(vOpts.dstPath, function(error, stdout) {
+								watermark(error, stdout, vOpts);
+							});
+						}
+						else {
+							gm(srcPath).write(vOpts.dstPath, function(error, stdout) {
+								watermark(error, stdout, vOpts);
+							});
+						}
+          }
 	      });
 	    }
 		};
