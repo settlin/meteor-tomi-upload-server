@@ -17,7 +17,6 @@ Package.onUse(function(api) {
 });
 
 Npm.depends({
-  formidable: '1.0.15',
-  gm: '1.23.0',
-	connect: '2.7.10'
+  formidable: '1.0.17',
+  gm: '1.23.0'
 });
