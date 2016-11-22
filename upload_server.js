@@ -437,7 +437,7 @@ UploadHandler.prototype.post = function () {
 				}
 				var wmText = function (cb) {
 					gm(verOpts.dstPath)
-					.fill('rgba(0,0,0,0.2)')
+					.fill('rgba(0,0,0,0.1)')
 					.fontSize(200)
 					.gravity("Center")
 					.draw(["rotate -45 text 0,0 '" + verOpts.watermark.text + "'"])
