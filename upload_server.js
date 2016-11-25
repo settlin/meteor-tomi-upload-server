@@ -337,6 +337,7 @@ UploadHandler.prototype.post = function () {
     tmpFiles = [],
     files = [],
     map = {},
+    floorplanFacing,
     counter = 1,
     redirect,
     finish = function (err, stdout) {
@@ -367,6 +368,7 @@ UploadHandler.prototype.post = function () {
     }
     //  console.log('Form field: ' + name + "-" + value);
     this.formFields[name] = value;
+    if (name === "floorplanFacing") floorplanFacing = value;
   }).on('file', function (name, file) {
     var fileInfo = map[path.basename(file.path)];
     fileInfo.size = file.size;
@@ -425,25 +427,45 @@ UploadHandler.prototype.post = function () {
 				var wmLogo = function (cb) {
 					gm(verOpts.dstPath).size(function(err, size) {
 						if (err) throw err;
-						var imageTxt= "";
+						var imageTxt= "", imgToDraw = verOpts.watermark.logo;
 						imageTxt += "image Over ";
-						imageTxt += size.width - verOpts.watermark.logo.width - 50 + ","
-						imageTxt += size.height - verOpts.watermark.logo.height - 50 + " ";
-						imageTxt += verOpts.watermark.logo.width + "," + verOpts.watermark.logo.height;
-						imageTxt += "'" + verOpts.watermark.logo.path + "'";
+						imageTxt += size.width - imgToDraw.width - 50 + ","
+						imageTxt += size.height - imgToDraw.height - 50 + " ";
+						imageTxt += imgToDraw.width + "," + imgToDraw.height;
+						imageTxt += "'" + imgToDraw.path + "'";
+						gm(verOpts.dstPath)
+						.draw([imageTxt]).write(verOpts.dstPath, cb);
+					});
+				}
+				var wmFacing = function (facing, cb) {
+					gm(verOpts.dstPath).size(function(err, size) {
+						if (err) throw err;
+						var imageTxt= "", imgToDraw = verOpts.watermark.facingDir;
+						imageTxt += "image Over ";
+						imageTxt += size.width - imgToDraw.width - 50 + ","
+						imageTxt += size.height - imgToDraw.height - 100 + " ";
+						imageTxt += imgToDraw.width + "," + imgToDraw.height;
+						imageTxt += "'" + imgToDraw.path + facing + ".png'";
 						gm(verOpts.dstPath)
 						.draw([imageTxt]).write(verOpts.dstPath, cb);
 					});
 				}
 				var wmText = function (cb) {
 					gm(verOpts.dstPath)
-					.fill('rgba(0,0,0,0.1)')
+					.fill('rgba(0,0,0,0.2)')
 					.fontSize(200)
 					.gravity("Center")
 					.draw(["rotate -45 text 0,0 '" + verOpts.watermark.text + "'"])
 					.write(verOpts.dstPath, cb);
 				}
-				if (verOpts.watermark.logo) {
+				if (floorplanFacing && verOpts.watermark.facingDir) {
+					check(verOpts.watermark.facingDir, {path: String, width: Number, height: Number});
+					wmFacing(floorplanFacing, function(err) {
+						if (err) throw err;
+						if (verOpts.watermark.text) wmText(finish);
+					});
+				}
+				else if (verOpts.watermark.logo) {
 					check(verOpts.watermark.logo, {path: String, width: Number, height: Number});
 					wmLogo(function(err) {
 						if (err) throw err;
