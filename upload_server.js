@@ -140,7 +140,12 @@ UploadServer = {
     }
 
     RoutePolicy.declare(options.uploadUrl, 'network');
-    WebApp.connectHandlers.use(options.uploadUrl, UploadServer.serve);
+		try {
+			WebApp.connectHandlers.use(options.uploadUrl, UploadServer.serve);
+		}
+		catch (e) {
+			console.error('UploadServer: Could not serve', e);
+		}
   },
   delete: function (filePath) {
 
