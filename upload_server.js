@@ -468,6 +468,7 @@ UploadHandler.prototype.post = function () {
 					wmFacing(floorplanFacing, function(err) {
 						if (err) throw err;
 						if (verOpts.watermark.text) wmText(finish);
+						else finish(err, stdout);
 					});
 				}
 				else if (verOpts.watermark.logo) {
@@ -475,6 +476,7 @@ UploadHandler.prototype.post = function () {
 					wmLogo(function(err) {
 						if (err) throw err;
 						if (verOpts.watermark.text) wmText(finish);
+						else finish(err, stdout);
 					});
 				}
 				else if (verOpts.watermark.text) wmText(finish);
